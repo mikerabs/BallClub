@@ -16,14 +16,14 @@ cur = conn.cursor()
 
 BASE_URL = "https://www.baseball-reference.com/players/{}/"
 
-# Function to check if a player exists in the database
-def player_exists(player_name):
-    cur.execute("SELECT 1 FROM players WHERE name = %s", (player_name,))
+# Function to check if a player URL already exists
+def player_url_exists(player_url):
+    cur.execute("SELECT 1 FROM players WHERE url = %s", (player_url,))
     return cur.fetchone() is not None
 
 # Function to scrape player names
 def scrape_players():
-    letters = "a"
+    letters = "a"#bcdefghijklmnopqrstuvwxyz"
     for letter in letters:
         url = BASE_URL.format(letter)
         print(f"Scraping: {url}")
@@ -34,6 +34,7 @@ def scrape_players():
 
         try:
             response = requests.get(url, headers=headers)
+            response.encoding = 'utf-8'  # Ensure correct character encoding
             if response.status_code != 200:
                 print(f"Failed to fetch {url} (Status Code: {response.status_code})")
                 continue
@@ -43,7 +44,7 @@ def scrape_players():
             # Extract player names from <p> tags
             for p in soup.find_all("p"):
                 a_tag = p.find("a")
-                if not a_tag:
+                if not a_tag or not a_tag.get("href"):
                     continue
 
                 player_name = a_tag.text.strip()
@@ -52,18 +53,26 @@ def scrape_players():
                 # Remove Hall of Fame (+) markers from names
                 player_name = player_name.replace("+", "").strip()
 
-                # Skip player if already in database
-                if player_exists(player_name):
-                    print(f"Skipping existing player: {player_name}")
+                # Validate that this is a player profile URL (not a random link)
+                if not player_url.startswith("https://www.baseball-reference.com/players/"):
+                    continue
+
+                # Skip non-player links (like "Player Index")
+                if not player_url.endswith(".shtml"):
+                    print(f"Skipping non-player link: {player_name} ({player_url})")
+                    continue
+                
+                if player_url_exists(player_url):
+                    print(f"Skipping existing player profile: {player_url}")
                     continue
 
                 # Insert into database
                 cur.execute(
-                    "INSERT INTO players (name, sport) VALUES (%s, 'Baseball');",
-                    (player_name,)
+                    "INSERT INTO players (name, sport, url) VALUES (%s, 'Baseball', %s);",
+                    (player_name, player_url)
                 )
                 conn.commit()
-                print(f"Added: {player_name}")
+                print(f"Added: {player_name} ({player_url})")
 
             # Random delay to avoid being blocked
             delay = random.uniform(1.5, 4.0)
@@ -80,4 +89,3 @@ def scrape_players():
 # Run the scraper
 if __name__ == "__main__":
     scrape_players()
-
