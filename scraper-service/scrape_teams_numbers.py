@@ -77,19 +77,12 @@ def scrape_teams_and_numbers():
 
             for a_tag in uni_holder.find_all("a", class_="poptip"):
                 # Extract jersey number from the href attribute
-                href = a_tag.get("href", "")
-                if "number=" in href:
-                    number = href.split("number=")[-1]
-                else:
-                    continue  # Skip if no number found
-
                 # Extract team name from the data-tip attribute
                 data_tip = a_tag.get("data-tip", "")
                 if "-" not in data_tip:
                     continue  # Skip if no valid team-year format
 
-                team_name = data_tip.split(" ", 1)[1]  # Get everything after the year(s)
-                team_name = team_name.strip()
+                team_name = data_tip.split(" ", 1)[1].strip()  # Get everything after the year(s)
 
                 # Ensure team exists in the database
                 team_id = team_exists(team_name)
@@ -104,10 +97,24 @@ def scrape_teams_and_numbers():
                     insert_player_team(player_id, team_id)
                     print(f"Linked {player_url} to team {team_name}")
 
-                # Ensure jersey number is added
+                # Extract jersey number from the href attribute (if available)
+                href = a_tag.get("href", "")
+                number = -1  # Default to -1 if no number is found
+                if "number=" in href:
+                    number = href.split("number=")[-1].strip()
+
+                try:
+                    number = int(number)
+                except ValueError:
+                    number = -1
+                    print(f"Number not provided, appending -1 to {player_url}")
+
+
+                # Ensure jersey number is added (including -1 for missing numbers)
                 if not jersey_number_exists(player_id, team_id, number):
                     insert_jersey_number(player_id, team_id, number)
                     print(f"Added jersey number {number} for {player_url} ({team_name})")
+
 
             # Random delay to avoid being blocked
             delay = random.uniform(1.5, 4.0)
